@@ -1,17 +1,20 @@
 import Foundation
+import FindPhoneKit
 
 let usage = """
 findphone — locate a nearby Bluetooth device by signal strength
 
-  findphone            survey every nearby Apple handheld
+  findphone            survey every nearby Apple device
   findphone <name>     track one device by name (case-insensitive)
   findphone --list     show paired devices and their addresses
 
   --sound              click faster as you get closer (hunt mode)
   --redact             mask Bluetooth addresses, for screen recording
+  --all                also list devices that are not Apple hardware
+  --raw                print advertisements as they arrive, and stop drawing
 """
 
-let knownFlags: Set<String> = ["-h", "--help", "--list", "--redact", "--sound"]
+let knownFlags: Set<String> = ["-h", "--help", "--list", "--redact", "--sound", "--all", "--raw"]
 
 func usageError(_ message: String) -> Never {
     FileHandle.standardError.write(Data("findphone: \(message)\n\n\(usage)\n".utf8))
@@ -48,20 +51,45 @@ if args.contains("--sound") {
         usageError("--sound needs a device name to track")
     }
     clicker = Clicker()
-    if let clicker {
-        clicker.start()
-    } else {
+    if clicker == nil {
         FileHandle.standardError.write(Data("findphone: could not open the click sound\n".utf8))
     }
+    clicker?.start()
 }
 
-let tracker = Tracker(targetName: names.first)
+let target: Target = names.first.map(Target.name) ?? .none
+let tracker = Tracker(target: target, aux: ClassicSource())
+tracker.includeNonApple = args.contains("--all")
+tracker.onFatal = { fail($0) }
+
+/// Raw mode replaces the display rather than sharing the screen with it: the
+/// point is a scrollable log to check kind labels against real hardware.
+if args.contains("--raw") {
+    if redact {
+        fail("--raw prints raw identifying advertisement data; --redact cannot mask it")
+    }
+    tracker.onRaw = { print(Display.raw($0)) }
+    tracker.start()
+    RunLoop.main.run()
+}
+
 tracker.start()
+
+/// Survey mode also lists what is paired with this Mac: a Mac or a HomePod can
+/// go a long time without sending a Continuity packet, so BLE alone would
+/// under-report the house.
+let paired = ClassicWatcher()
+if names.isEmpty { paired.start() }
 
 Timer.scheduledTimer(withTimeInterval: names.isEmpty ? 1.0 : 0.25, repeats: true) { _ in
     let snapshot = tracker.snapshot()
-    Display.render(snapshot, redact: redact)
+    Display.render(snapshot, redact: redact, paired: paired.devices)
     clicker?.update(rssi: snapshot.isFresh ? snapshot.live : nil)
 }
 
 RunLoop.main.run()
+
+func fail(_ message: String) -> Never {
+    FileHandle.standardError.write(Data("findphone: \(message)\n".utf8))
+    exit(1)
+}

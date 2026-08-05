@@ -11,6 +11,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Unit tests
+        run: swift test
+
       - name: Build universal binary
         run: ./scripts/build-universal.sh dist
 
@@ -35,3 +38,29 @@ jobs:
           name: findphone-macos-universal
           path: dist/findphone
           if-no-files-found: error
+
+  app:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      # Unsigned: the point is that the shared core still compiles for iOS,
+      # which is where it silently rots.
+      - name: Build the app
+        run: |
+          cd App
+          xcodegen generate
+          xcodebuild -project Dowser.xcodeproj -scheme Dowser \
+            -destination 'generic/platform=iOS' -configuration Release \
+            build CODE_SIGNING_ALLOWED=NO
+
+      # The UI tests drive the app with -demo, so they need no radio.
+      - name: UI tests
+        run: |
+          cd App
+          xcodebuild test -project Dowser.xcodeproj -scheme Dowser \
+            -destination 'platform=iOS Simulator,OS=latest,name=iPhone 16' \
+            CODE_SIGNING_ALLOWED=NO

@@ -1,4 +1,5 @@
 import Foundation
+import FindPhoneKit
 
 struct ClassicDevice {
     let name: String
@@ -50,28 +51,35 @@ enum Classic {
     }
 }
 
-/// Remembers which CoreBluetooth peripheral matched a search, so a later run
-/// can connect straight away instead of waiting for one of the rare
-/// advertisements that carries the device name.
-enum DeviceCache {
-    private static let url = FileManager.default
-        .homeDirectoryForCurrentUser
-        .appendingPathComponent(".config/findphone/devices.json")
-
-    private static func load() -> [String: String] {
-        guard let data = try? Data(contentsOf: url) else { return [:] }
-        return (try? JSONDecoder().decode([String: String].self, from: data)) ?? [:]
+/// The classic table as a reading source for the tracker. Only macOS has one:
+/// iOS exposes neither `system_profiler` nor the classic radio, which is the
+/// main reason the app sees less than the command line does.
+final class ClassicSource: AuxiliarySource {
+    func poll(name: String) -> (address: String, rssi: Int?)? {
+        Classic.find(name: name).map { ($0.address, $0.rssi) }
     }
+}
 
-    static func peripheralID(for name: String) -> UUID? {
-        load()[name.lowercased()].flatMap(UUID.init(uuidString:))
-    }
+/// Keeps a current copy of the paired table for survey mode. Macs, Apple TVs
+/// and HomePods can go long stretches without sending a Continuity packet, so
+/// the BLE list alone is not the household; anything paired with this Mac and
+/// reporting an RSSI is in range whether or not it is advertising.
+///
+/// Polled on its own thread because system_profiler takes the better part of a
+/// second, and refreshed no faster than macOS updates the value behind it.
+final class ClassicWatcher {
+    private let lock = NSLock()
+    private var latest: [ClassicDevice] = []
 
-    static func store(_ id: UUID, for name: String) {
-        var map = load()
-        map[name.lowercased()] = id.uuidString
-        try? FileManager.default.createDirectory(
-            at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try? JSONEncoder().encode(map).write(to: url)
+    var devices: [ClassicDevice] { lock.withLock { latest } }
+
+    func start() {
+        DispatchQueue(label: "classic.survey").async { [weak self] in
+            while let self {
+                let found = Classic.devicesByStrength().filter { $0.rssi != nil }
+                self.lock.withLock { self.latest = found }
+                Thread.sleep(forTimeInterval: 3)
+            }
+        }
     }
 }
