@@ -263,8 +263,11 @@ Tests/FindPhoneKitTests/    unit tests for the engine
 ```sh
 swift test                                   # the shared engine
 cd App && xcodebuild test -scheme Dowser \
-  -destination 'platform=iOS Simulator,name=iPhone 16'
+  -destination 'platform=iOS Simulator,name=iPhone 16 Pro'   # or any iPhone you have
 ```
+
+CI picks whichever simulator the runner happens to ship rather than naming a
+model, because Apple retires simulator images without warning.
 
 ## Permissions
 
