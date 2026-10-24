@@ -18,7 +18,7 @@ final class HuntNavigationTests: XCTestCase {
         XCTAssertTrue(device.waitForExistence(timeout: 10), "the survey list never appeared")
         device.tap()
 
-        let reading = app.staticTexts["dBm"]
+        let reading = app.descendants(matching: .any)["hunt.reading"]
         XCTAssertTrue(reading.waitForExistence(timeout: 5), "tapping a device did not open a hunt")
 
         // The bug this guards: the hunt opened and unwound itself, which read
@@ -33,7 +33,7 @@ final class HuntNavigationTests: XCTestCase {
         let device = app.staticTexts["AirPods Max"]
         XCTAssertTrue(device.waitForExistence(timeout: 10))
         device.tap()
-        XCTAssertTrue(app.staticTexts["dBm"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["hunt.reading"].waitForExistence(timeout: 5))
 
         app.buttons["Stop"].tap()
         XCTAssertTrue(app.staticTexts["Pick a device"].waitForExistence(timeout: 5)

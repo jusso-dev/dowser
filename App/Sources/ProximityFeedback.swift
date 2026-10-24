@@ -42,13 +42,16 @@ final class ProximityFeedback {
     private func schedule() {
         guard running else { return }
         let wait = rssi.map(ClickCadence.interval(for:)) ?? ClickCadence.slowest
-        timer = Timer.scheduledTimer(withTimeInterval: wait, repeats: false) { [weak self] _ in
+        let timer = Timer(timeInterval: wait, repeats: false) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self, self.running else { return }
                 self.beat()
                 self.schedule()
             }
         }
+        // Common modes, so the clicks do not stall while the screen scrolls.
+        RunLoop.main.add(timer, forMode: .common)
+        self.timer = timer
     }
 
     private func beat() {

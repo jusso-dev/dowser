@@ -17,14 +17,20 @@ final class HapticPlayer {
     private var engine: CHHapticEngine?
     private var buzzPlayer: CHHapticAdvancedPatternPlayer?
     private var buzzing = false
+    /// Set once the system has stopped the engine; the next beat restarts it.
+    private var stopped = false
 
     func start() {
         guard Self.isSupported, engine == nil else { return }
         engine = try? CHHapticEngine()
         // The system stops the engine on interruption and on the way to the
-        // background; without these it stays silently dead afterwards.
+        // background; without these it stays silently dead afterwards. It
+        // cannot be restarted from the background, so the next beat does it.
         engine?.stoppedHandler = { [weak self] _ in
-            Task { @MainActor in self?.buzzing = false }
+            Task { @MainActor in
+                self?.buzzing = false
+                self?.stopped = true
+            }
         }
         engine?.resetHandler = { [weak self] in
             Task { @MainActor in
@@ -41,12 +47,23 @@ final class HapticPlayer {
         engine?.stop()
         engine = nil
         buzzPlayer = nil
+        stopped = false
+    }
+
+    /// The engine, started again if the system stopped it.
+    private var running: CHHapticEngine? {
+        guard let engine else { return nil }
+        if stopped {
+            guard (try? engine.start()) != nil else { return nil }
+            stopped = false
+        }
+        return engine
     }
 
     /// One tap. Sharpness rises with intensity so close taps feel crisp rather
     /// than merely stronger.
     func tap(intensity: Double) {
-        guard let engine else { return }
+        guard let engine = running else { return }
         let event = CHHapticEvent(
             eventType: .hapticTransient,
             parameters: [
@@ -63,7 +80,7 @@ final class HapticPlayer {
     /// A held buzz, started once and then steered by intensity, because
     /// restarting it every tick would chop it into taps again.
     func buzz(intensity: Double) {
-        guard let engine else { return }
+        guard let engine = running else { return }
         if !buzzing {
             let event = CHHapticEvent(
                 eventType: .hapticContinuous,
