@@ -11,8 +11,11 @@ final class HuntLayoutTests: XCTestCase {
                                "UICTContentSizeCategoryAccessibilityXXXL"]
         app.launch()
 
-        let device = app.staticTexts["AirPods Max"]
-        XCTAssertTrue(device.waitForExistence(timeout: 10), "the survey list never appeared")
+        // The first row: at this size on a 6.3" phone the second one shows
+        // only the top of its name, in the home indicator's strip, and a tap
+        // there was dropped on a cold CI simulator.
+        let device = app.staticTexts["Justin iPhone 17 Pro Max"]
+        XCTAssertTrue(device.waitForExistence(timeout: 30), "the survey list never appeared")
         attach(app, "survey at accessibility text size")
         device.tap()
 
@@ -20,7 +23,8 @@ final class HuntLayoutTests: XCTestCase {
         // can everything above it.
         let footnote = app.staticTexts
             .matching(NSPredicate(format: "label BEGINSWITH 'Signal strength is'")).firstMatch
-        XCTAssertTrue(footnote.waitForExistence(timeout: 5), "tapping a device did not open a hunt")
+        // One look at this hunt takes the CI simulator about four seconds.
+        XCTAssertTrue(footnote.waitForExistence(timeout: 30), "tapping a device did not open a hunt")
         attach(app, "hunt at accessibility text size")
 
         let before = footnote.frame.minY
