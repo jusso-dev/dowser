@@ -67,4 +67,14 @@ jobs:
             | jq -r '[.devices[][] | select(.name | test("^iPhone"))][0].udid')
           echo "testing on $UDID"
           xcodebuild test -project Dowser.xcodeproj -scheme Dowser \
-            -destination "id=$UDID" CODE_SIGNING_ALLOWED=NO
+            -destination "id=$UDID" -resultBundlePath UITests.xcresult \
+            CODE_SIGNING_ALLOWED=NO
+
+      # The tests attach what the screen showed; without the bundle a failure
+      # here is a line number and nothing to look at.
+      - name: Upload UI test results
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ui-test-results
+          path: App/UITests.xcresult
