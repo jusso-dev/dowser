@@ -13,24 +13,32 @@ struct HuntView: View {
     private var snapshot: Snapshot { store.snapshot }
 
     var body: some View {
-        VStack(spacing: 22) {
-            if let issue = snapshot.radioIssue {
-                ContentUnavailableView("Bluetooth", systemImage: "exclamationmark.triangle",
-                                       description: Text(issue))
-            } else if let live = snapshot.live, let last = snapshot.readings.last {
-                reading(live: live, last: last)
-            } else {
-                ContentUnavailableView(
-                    "No contact yet",
-                    systemImage: "dot.radiowaves.left.and.right",
-                    description: Text("Powered off, out of range (~10-20 m), or shut inside "
-                                      + "something metal. \(snapshot.deviceCount) other devices "
-                                      + "are in range."))
+        // Centred when it fits, scrollable when it does not: a small display
+        // or large text makes the window shorter than the reading, and without
+        // a scroll view SwiftUI truncates every line to make it fit.
+        GeometryReader { window in
+            ScrollView {
+                VStack(spacing: 22) {
+                    if let issue = snapshot.radioIssue {
+                        ContentUnavailableView("Bluetooth", systemImage: "exclamationmark.triangle",
+                                               description: Text(issue))
+                    } else if let live = snapshot.live, let last = snapshot.readings.last {
+                        reading(live: live, last: last)
+                    } else {
+                        ContentUnavailableView(
+                            "No contact yet",
+                            systemImage: "dot.radiowaves.left.and.right",
+                            description: Text("Powered off, out of range (~10-20 m), or shut inside "
+                                              + "something metal. \(snapshot.deviceCount) other "
+                                              + "devices are in range."))
+                    }
+                }
+                .padding()
+                .frame(maxWidth: 620)
+                .frame(maxWidth: .infinity, minHeight: window.size.height)
             }
+            .scrollBounceBehavior(.basedOnSize)
         }
-        .padding()
-        .frame(maxWidth: 620, maxHeight: .infinity, alignment: .center)
-        .frame(maxWidth: .infinity)
         .navigationTitle(snapshot.targetLabel ?? "Hunting")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -70,12 +78,17 @@ struct HuntView: View {
                 .animation(.snappy, value: live)
             Text("dBm").font(.headline).foregroundStyle(.secondary)
         }
+        // One VoiceOver stop for the number and its unit, not two.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Signal strength")
+        .accessibilityValue("\(live) dBm")
+        .accessibilityIdentifier("hunt.reading")
 
-        HStack(spacing: 16) {
-            Text(Proximity.describe(live).uppercased())
-                .font(.headline)
-                .foregroundStyle(tone)
-            TrendLabel(trend: Trend.of(snapshot.readings, now: snapshot.at))
+        // Side by side while it fits, stacked when the window is narrow or the
+        // text is large.
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 16) { proximity(live: live, tone: tone) }
+            VStack(spacing: 6) { proximity(live: live, tone: tone) }
         }
 
         SignalBar(rssi: live)
@@ -108,6 +121,14 @@ struct HuntView: View {
             .foregroundStyle(.tertiary)
             .multilineTextAlignment(.center)
             .padding(.top, 4)
+    }
+
+    @ViewBuilder
+    private func proximity(live: Int, tone: Color) -> some View {
+        Text(Proximity.describe(live).uppercased())
+            .font(.headline)
+            .foregroundStyle(tone)
+        TrendLabel(trend: Trend.of(snapshot.readings, now: snapshot.at))
     }
 }
 

@@ -55,19 +55,27 @@ struct DeviceRow: View {
     let advertiser: Advertiser
     let now: Date
 
+    @Environment(\.dynamicTypeSize) private var typeSize
+
     private var stale: Bool { now.timeIntervalSince(advertiser.last) > 3 }
 
+    /// At accessibility text sizes three columns leave the name a few letters
+    /// wide, so the row stacks instead and the name may wrap.
+    private var stacked: Bool { typeSize.isAccessibilitySize }
+
     var body: some View {
-        HStack(spacing: 14) {
+        let layout = stacked ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
+                             : AnyLayout(HStackLayout(spacing: 14))
+        layout {
             Image(systemName: advertiser.kind.symbol)
                 .font(.title2)
-                .frame(width: 34)
+                .frame(width: stacked ? nil : 34)
                 .foregroundStyle(BandStyle.color(advertiser.rssi))
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(advertiser.label)
                     .font(.body.weight(.medium))
-                    .lineLimit(1)
+                    .lineLimit(stacked ? nil : 1)
                 Text(advertiser.kind.rawValue)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -75,14 +83,17 @@ struct DeviceRow: View {
                     .frame(height: 5)
             }
 
-            VStack(alignment: .trailing, spacing: 3) {
+            VStack(alignment: stacked ? .leading : .trailing, spacing: 3) {
                 Text("\(advertiser.rssi)")
                     .font(.title3.monospacedDigit().weight(.semibold))
                     .foregroundStyle(BandStyle.color(advertiser.rssi))
                 Text(Proximity.describe(advertiser.rssi))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.trailing)
+                    .multilineTextAlignment(stacked ? .leading : .trailing)
+                    // Dimming is the only other sign a row has gone quiet.
+                    .accessibilityLabel(stale ? "\(Proximity.describe(advertiser.rssi)), stale"
+                                              : Proximity.describe(advertiser.rssi))
             }
         }
         .padding(.vertical, 4)

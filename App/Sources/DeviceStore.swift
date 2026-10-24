@@ -48,7 +48,7 @@ final class DeviceStore: ObservableObject {
     private func schedule() {
         timer?.invalidate()
         let rate = tickRate
-        timer = Timer.scheduledTimer(withTimeInterval: rate, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: rate, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self else { return }
                 self.snapshot = self.tracker.snapshot()
@@ -56,6 +56,10 @@ final class DeviceStore: ObservableObject {
                 if rate != self.tickRate { self.schedule() }
             }
         }
+        // Common modes, so the reading keeps moving while a list or the hunt
+        // itself is being scrolled.
+        RunLoop.main.add(timer, forMode: .common)
+        self.timer = timer
     }
 
     /// The buzz arms itself with the hunt: it is silent until the device is in
